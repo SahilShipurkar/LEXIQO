@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  student
+}
+
+enum AuthProvider {
+  EMAIL
+  PHONE
+}
+
+model User {
+  id            String       @id @default(uuid())
+  username      String?      @unique
+  name          String?
+  email         String?      @unique
+  password      String?      // Added for password login
+  auth_provider AuthProvider @default(EMAIL)
+  tokenVersion  Int          @default(0)
+  role          UserRole     @default(student)
+  createdAt     DateTime     @default(now())
+  results       TestResult[]
+
+  @@map("user")
+}
+
+model EmailOtp {
+  id        Int      @id @default(autoincrement())
+  email     String
+  otp       String
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model TestResult {
+  id              Int      @id @default(autoincrement())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  sectionName     String
+  totalQuestions  Int
+  correct         Int
+  wrong           Int
+  skipped         Int
+  scorePercentage Decimal  @db.Decimal(5, 2)
+  timeTaken       Int
+  userAnswers     Json?
+  attemptDate     DateTime @default(now())
+
+  @@map("test_result")
+}
+
+model QuantitativeQuestion {
+  id            Int      @id @default(autoincrement())
+  question      String
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctAnswer String
+  difficulty    String
+  createdAt     DateTime @default(now())
+
+  @@map("quantitative_question")
+}
+
+model LogicalQuestion {
+  id            Int      @id @default(autoincrement())
+  question      String
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctAnswer String
+  difficulty    String
+  createdAt     DateTime @default(now())
+
+  @@map("logical_question")
+}
+
+model VerbalQuestion {
+  id            Int      @id @default(autoincrement())
+  question      String
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctAnswer String
+  difficulty    String
+  createdAt     DateTime @default(now())
+
+  @@map("verbal_question")
+}
+
+model DIQuestion {
+  id            Int      @id @default(autoincrement())
+  question      String
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctAnswer String
+  difficulty    String
+  createdAt     DateTime @default(now())
+
+  @@map("di_question")
+}
+
+model DSAQuestion {
+  id            Int      @id @default(autoincrement())
+  question      String
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctAnswer String
+  difficulty    String
+  createdAt     DateTime @default(now())
+
+  @@map("dsa_question")
+}
