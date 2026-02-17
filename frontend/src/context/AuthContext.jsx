@@ -176,7 +176,7 @@ export const AuthProvider = ({ children }) => {
 
     // Axios instance
     const api = axios.create({
-        baseURL: 'http://localhost:3000', // backend URL
+        baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
     });
 
     // Attach token to every request
@@ -270,8 +270,8 @@ export const AuthProvider = ({ children }) => {
 
     const checkUsername = async (username) => {
         try {
-            const res = await axios.get(
-                `http://localhost:3000/users/check-username?username=${username}`
+            const res = await api.get(
+                `/users/check-username?username=${username}`
             );
             return res.data.available;
         } catch (error) {
@@ -282,8 +282,8 @@ export const AuthProvider = ({ children }) => {
 
     const checkEmail = async (email) => {
         try {
-            const res = await axios.get(
-                `http://localhost:3000/users/check-email?email=${email}`
+            const res = await api.get(
+                `/users/check-email?email=${email}`
             );
             return res.data.available;
         } catch (error) {
