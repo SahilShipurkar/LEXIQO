@@ -7,7 +7,13 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS
-  app.enableCors();
+  app.enableCors({
+    origin: [
+      'https://lexiqo.netlify.app',
+      'http://localhost:5173',
+    ],
+    credentials: true,
+  });
 
   // Enable DTO validation (recommended)
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
@@ -27,13 +33,8 @@ async function bootstrap() {
     )
     .build();
 
-  app.enableCors({
-    origin: [
-      'https://lexiqo.netlify.app',
-      'http://localhost:5173',
-    ],
-    credentials: true,
-  });
+
+
 
 
 
