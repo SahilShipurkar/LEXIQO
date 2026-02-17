@@ -5,7 +5,7 @@ import './Register.css';
 
 const Register = () => {
     const navigate = useNavigate();
-    const { register, checkUsername, checkEmail, sendEmailOtp } = useAuth(); // Added checkEmail
+    const { register, checkUsername, checkEmail, sendEmailOtp, checkOtp } = useAuth(); // Added checkEmail
 
     const [formData, setFormData] = useState({
         name: '',
@@ -88,7 +88,7 @@ const Register = () => {
             alert(`OTP sent to ${formData.email}`);
             setErrors(prev => ({ ...prev, email: null }));
         } catch (err) {
-            setErrors(prev => ({ ...prev, email: 'Failed to send OTP' }));
+            setErrors(prev => ({ ...prev, email: err.response?.data?.message || 'Failed to send OTP' }));
         } finally {
             setOtpLoading(false);
         }
@@ -128,16 +128,23 @@ const Register = () => {
     // BACKTRACK: I will first implement the UI assuming a `verifyOtp` function exists in context.
 
     const verifyOtp = async () => {
-        // Temporary: We don't have a dedicated verify endpoint that doesn't login.
-        // I will rely on the final Register call to verify.
-        // BUT to satisfy the UI requirement "Shown only after verified", I'll mock it or add the endpoint.
-        // Adding endpoint is best.
-        // For now, let's just show the Register button if OTP is entered, and handle verification on submit?
-        // "4. OTP verification must be mandatory to complete registration."
-        // "3. Registration button... SHOWN only after OTP is successfully verified"
-        // This implies an interactive step.
-        // I will implement a `verifyOtpForRegistration` in AuthContext that calls a new backend endpoint.
-    }
+        if (!formData.otp || formData.otp.length < 6) return;
+        setOtpLoading(true);
+        try {
+            const { valid } = await checkOtp(formData.email, formData.otp);
+            if (valid) {
+                setOtpVerified(true);
+                setErrors(prev => ({ ...prev, otp: null }));
+            } else {
+                setErrors(prev => ({ ...prev, otp: 'Invalid OTP code' }));
+            }
+        } catch (error) {
+            console.error(error);
+            setErrors(prev => ({ ...prev, otp: 'Verification failed' }));
+        } finally {
+            setOtpLoading(false);
+        }
+    };
 
     // Let's stick to the structure for now.
 
@@ -240,8 +247,21 @@ const Register = () => {
                                 placeholder="Enter 6-digit OTP"
                                 style={{ textAlign: 'center', letterSpacing: '4px' }}
                             />
+                            {otpSent && !otpVerified && (
+                                <button
+                                    type="button"
+                                    onClick={verifyOtp}
+                                    className="btn btn-primary"
+                                    style={{ marginLeft: '0.5rem', padding: '0.5rem 1rem' }}
+                                    disabled={otpLoading || !formData.otp || formData.otp.length < 6}
+                                >
+                                    {otpLoading ? '...' : 'Verify'}
+                                </button>
+                            )}
+                            {otpVerified && <span style={{ color: 'var(--success)', marginLeft: '0.5rem', alignSelf: 'center' }}>✓ Verified</span>}
                         </div>
                     )}
+                    {errors.otp && <div style={{ color: 'var(--error)', fontSize: '0.75rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>{errors.otp}</div>}
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div className="input-group">
@@ -270,7 +290,7 @@ const Register = () => {
                         </div>
                     )}
 
-                    {otpSent && (
+                    {otpVerified && (
                         <button type="submit" className="btn btn-primary w-full" style={{ marginTop: '1rem' }} disabled={loading}>
                             {loading ? 'Creating Account...' : 'Register Now'}
                         </button>

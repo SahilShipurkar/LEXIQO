@@ -7,11 +7,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: [
-      'https://lexiqo.netlify.app',
-      'http://localhost:5173',
-    ],
-    methods: 'GET,POST,PUT,DELETE,OPTIONS',
+    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://lexiqo.netlify.app'],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
 
@@ -32,10 +29,6 @@ async function bootstrap() {
       'JWT-auth',
     )
     .build();
-
-
-
-
 
 
   const document = SwaggerModule.createDocument(app, config);

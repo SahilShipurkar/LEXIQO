@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: lexiqo
+    name: lexiqo-new
     env: node
     plan: free
     rootDir: backend

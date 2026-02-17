@@ -171,6 +171,12 @@ export class AuthService {
         return { valid: isValid, resetToken };
     }
 
+    async checkOtp(email: string, otp: string) {
+        if (!email || !otp) throw new BadRequestException('Email and OTP are required');
+        const isValid = await this.otpService.verifyEmailOtp(email, otp, false);
+        return { valid: isValid };
+    }
+
     async register(data: any) {
         const { password, name, username, otp } = data;
         const email = data.email?.toLowerCase().trim();

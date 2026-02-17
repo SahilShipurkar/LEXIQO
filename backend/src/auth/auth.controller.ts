@@ -25,6 +25,13 @@ export class AuthController {
     }
 
     @Public()
+    @Post('check-otp')
+    @ApiOperation({ summary: 'Check OTP validity without consuming (for UI validation)' })
+    async checkOtp(@Body() body: { email: string, otp: string }) {
+        return this.authService.checkOtp(body.email, body.otp);
+    }
+
+    @Public()
     @Post('register')
     @ApiOperation({ summary: 'Register with Email/Password' })
     async register(@Body() body: any) {

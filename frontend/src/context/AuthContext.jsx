@@ -292,6 +292,16 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const checkOtp = async (email, otp) => {
+        try {
+            const res = await api.post('/auth/check-otp', { email, otp });
+            return res.data;
+        } catch (error) {
+            console.error(error);
+            return { valid: false };
+        }
+    };
+
     // ---------- PASSWORD RESET ----------
 
     const verifyOtpCheck = async (email, otp) => {
@@ -342,6 +352,7 @@ export const AuthProvider = ({ children }) => {
         logout,
         checkUsername,
         checkEmail,
+        checkOtp,
         verifyOtpCheck,
         resetPassword,
     };
