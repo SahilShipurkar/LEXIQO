@@ -6,12 +6,12 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS
   app.enableCors({
     origin: [
       'https://lexiqo.netlify.app',
       'http://localhost:5173',
     ],
+    methods: 'GET,POST,PUT,DELETE,OPTIONS',
     credentials: true,
   });
 
