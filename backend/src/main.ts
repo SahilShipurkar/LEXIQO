@@ -6,14 +6,11 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.enableCors({
-    origin: [
-      'https://lexiqo.netlify.app',
-      'http://localhost:5173',
-    ],
-    methods: 'GET,POST,PUT,DELETE,OPTIONS',
-    credentials: true,
-  });
+ app.enableCors({
+  origin: 'https://lexiqo.netlify.app', 
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+});
 
   // Enable DTO validation (recommended)
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
