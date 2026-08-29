@@ -1,504 +1,523 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import '../index.css';
-import './TestPage.css';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import api from '../api/axios';
+import { 
+ Clock, 
+ ArrowRight, 
+ ChevronLeft, 
+ ChevronRight, 
+ CheckCircle2, 
+ AlertTriangle,
+ Flag,
+ Lock,
+ Loader2
+} from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+
+/* 🧩 SUB-COMPONENTS */
+
+const InfoBadge = ({ icon: Icon, text, sub }) => (
+ <div className="flex flex-col items-center gap-2 p-5 bg-surface rounded-xl transition-all duration-500 hover:shadow-elevated group relative overflow-hidden text-center border border-border-subtle">
+  <div className="w-8 h-8 rounded-full bg-surface-hover flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all duration-500 shadow-main">
+   <Icon size={14} strokeWidth={2.5} />
+  </div>
+  <div className="flex flex-col items-center leading-none">
+   <span className="text-xs font-semibold text-text-main uppercase tracking-wider mb-1">{text}</span>
+   <span className="label-text mb-0">{sub}</span>
+  </div>
+ </div>
+);
+
+const SummaryRow = ({ label, value, color }) => (
+ <div className="flex justify-between items-center group">
+  <span className="text-xs font-semibold uppercase tracking-wider text-text-sub group-hover:text-text-main transition-colors">{label}</span>
+  <div className="flex items-center gap-3">
+   <div className="w-8 h-px bg-border-subtle group-hover:w-12 transition-all" />
+   <span className={`text-base font-semibold ${color}`}>{value}</span>
+  </div>
+ </div>
+);
+
+const LegendRow = ({ color, label }) => (
+ <div className="flex items-center gap-4 group">
+  <div className={`w-3 h-3 rounded shadow-sm ${color} group-hover:rotate-12 transition-transform`} />
+  <span className="label-text mb-0">{label}</span>
+ </div>
+);
+
+const DetailItem = ({ icon: Icon, label, value, color, isLight }) => (
+  <div className="flex items-start gap-3 flex-1 min-w-[120px]">
+    <div className={`mt-1 p-2 rounded-lg ${isLight ? 'bg-surface' : 'bg-white/5'} border border-border-subtle ${color}`}>
+      <Icon size={16} strokeWidth={2.5} />
+    </div>
+    <div className="flex flex-col">
+      <span className="label-text mb-1">{label}</span>
+      <span className="text-sm font-semibold text-text-main">{value}</span>
+    </div>
+  </div>
+);
 
 const TestPage = () => {
-    const { testId } = useParams();
-    const navigate = useNavigate();
-    const [questions, setQuestions] = useState([]);
-    const [currentQuestion, setCurrentQuestion] = useState(0);
-    const [answers, setAnswers] = useState({});
-    const [confirmed, setConfirmed] = useState({}); // New state for locked answers
-    const [timeLeft, setTimeLeft] = useState(1200); // 20 minutes default
-    const [loading, setLoading] = useState(true);
-    const [startModalVisible, setStartModalVisible] = useState(true);
-    const [submitModalVisible, setSubmitModalVisible] = useState(false);
-    const [hasStarted, setHasStarted] = useState(false);
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const { testId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { theme } = useTheme();
+  const { setAppLoading } = useAuth();
 
-    useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
+ const [questions, setQuestions] = useState([]);
+ const [currentQuestion, setCurrentQuestion] = useState(0);
+ const [answers, setAnswers] = useState({});
+ const [confirmed, setConfirmed] = useState({});
+ const [timeLeft, setTimeLeft] = useState(1200);
+ const [loading, setLoading] = useState(true);
+ const [startModalVisible, setStartModalVisible] = useState(true);
+ const [submitModalVisible, setSubmitModalVisible] = useState(false);
+  const [hasStarted, setHasStarted] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
 
-    // Map testId to backend section keys
-    const sectionMap = {
-        'quant-easy': 'quant',
-        'logic-med': 'logical',
-        'verbal-hard': 'verbal',
-        'data-hard': 'di',
-        'dsa-all': 'dsa'
-    };
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      setAppLoading(true);
+      try {
+        const res = await api.post(`/tests/sessions/start/${testId}`);
+        const { session, questions: sessionQuestions } = res.data;
 
-    useEffect(() => {
-        // Prevent back button
-        window.history.pushState(null, null, window.location.href);
-        window.onpopstate = function () {
-            window.history.go(1);
-        };
-
-        const fetchQuestions = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                const res = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/questions/generate`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-
-                const sectionKey = sectionMap[testId] || 'quant';
-                const sectionQuestions = res.data[sectionKey];
-
-                if (sectionQuestions && sectionQuestions.length > 0) {
-                    setQuestions(sectionQuestions);
-                } else {
-                    alert('No questions available for this section.');
-                    navigate('/dashboard');
-                }
-                setLoading(false);
-            } catch (err) {
-                console.error(err);
-                alert('Failed to load questions.');
-                navigate('/dashboard');
-            }
-        };
-
-        if (hasStarted) {
-            fetchQuestions();
+        if (sessionQuestions && sessionQuestions.length > 0) {
+          const mapped = sessionQuestions.map(q => ({
+            id: q.id,
+            question: q.content,
+            optionA: q.options[0]?.text,
+            optionB: q.options[1]?.text,
+            optionC: q.options[2]?.text,
+            optionD: q.options[3]?.text,
+            correctAnswer: q.options.find(o => o.id === q.correctAnswer)?.text
+          }));
+          setQuestions(mapped);
+          setSessionId(session.id);
         } else {
-            setLoading(false); // Stop loading if waiting for modal
+          alert('Section content unavailable.');
+          navigate('/practice-tests');
         }
-    }, [hasStarted, testId, navigate]);
-
-    const submitTest = useCallback(async (isAuto = false) => {
-        try {
-            const token = localStorage.getItem('token');
-            const resultData = calculateResult(); // Uses updated logic
-
-            // Sending detailed answers map is crucial for backend storage/validation if implemented
-            const payload = {
-                sectionName: testId,
-                totalQuestions: questions.length,
-                correct: resultData.correct,
-                wrong: resultData.wrong,
-                skipped: resultData.skipped,
-                scorePercentage: resultData.percentage,
-                timeTaken: 1200 - timeLeft,
-                userAnswers: answers // Send detailed answers
-            };
-
-            await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/results`, payload, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
-            if (isAuto) {
-                alert('Time is up. Your test has been auto-submitted.');
-            }
-
-            // Navigate to results with state
-            navigate(`/result/${testId}`, { state: { result: payload, questions, answers, confirmed } });
-        } catch (err) {
-            console.error(err);
-            alert('Error submitting result. Check console.');
-
-            const resultData = calculateResult();
-            const fallbackPayload = {
-                sectionName: testId,
-                totalQuestions: questions.length,
-                correct: resultData.correct,
-                wrong: resultData.wrong,
-                skipped: resultData.skipped,
-                scorePercentage: resultData.percentage,
-                timeTaken: 1200 - timeLeft,
-                userAnswers: answers
-            };
-
-            // Still navigate to show local result
-            navigate(`/result/${testId}`, { state: { result: fallbackPayload, questions, answers, confirmed } });
-        }
-    }, [answers, confirmed, questions, timeLeft, testId, navigate]);
-
-    useEffect(() => {
-        if (!hasStarted) return;
-        if (timeLeft === 0) {
-            submitTest(true);
-            return;
-        }
-        const timer = setInterval(() => {
-            setTimeLeft(prev => prev - 1);
-        }, 1000);
-        return () => clearInterval(timer);
-    }, [timeLeft, hasStarted, submitTest]);
-
-    const handleOptionSelect = (option) => {
-        if (confirmed[currentQuestion]) return; // Prevent changing if confirmed
-        setAnswers({ ...answers, [currentQuestion]: option });
+      } catch (err) {
+        console.error(err);
+        alert('Failed to establish terminal connection. Please ensure the test exists.');
+        navigate('/practice-tests');
+      } finally {
+        setLoading(false);
+        setAppLoading(false);
+      }
     };
 
-    const handleConfirm = () => {
-        setConfirmed(prev => ({ ...prev, [currentQuestion]: true }));
-        // Micro confirmation due is handled via UI text "locked"
+    if (hasStarted) {
+      fetchQuestions();
+    } else {
+      setLoading(false);
+    }
+  }, [hasStarted, testId, navigate, setAppLoading]);
 
-        // Auto-navigate to next if not last
-        if (currentQuestion < questions.length - 1) {
-            setTimeout(() => setCurrentQuestion(curr => curr + 1), 600);
-        }
+  const calculateResult = useCallback(() => {
+    let correct = 0;
+    let wrong = 0;
+    let skipped = 0;
+
+    questions.forEach((q, index) => {
+      const selected = answers[index];
+      if (!selected) {
+        skipped++;
+      } else if (selected === q.correctAnswer) {
+        correct++;
+      } else {
+        wrong++;
+      }
+    });
+
+    return {
+      correct,
+      wrong,
+      skipped,
+      total: questions.length,
+      percentage: (correct / questions.length) * 100
     };
+  }, [questions, answers]);
 
-    const calculateResult = () => {
-        let correct = 0;
-        let wrong = 0;
-        let skipped = 0;
-
-        questions.forEach((q, index) => {
-            // Updated Logic:
-            // 1. Confirmed (Orange) -> Count as final
-            // 2. Selected (Green) -> Auto-promoted to final
-            // 3. Unattempted -> Skipped
-            const selected = answers[index];
-            if (!selected) {
-                skipped++;
-            } else if (selected === q.correctAnswer) {
-                correct++;
-            } else {
-                wrong++;
-            }
+  const submitTest = useCallback(async (isAuto = false) => {
+    setAppLoading(true);
+    try {
+      const resultData = calculateResult();
+      
+      const responsePromises = Object.entries(answers).map(([index, selected]) => {
+        const qId = questions[index].id;
+        return api.post(`/tests/sessions/${sessionId}/response`, {
+          questionId: qId,
+          selectedOption: selected,
+          timeSpent: 10 // approximated value or captured real value
         });
+      });
+      await Promise.all(responsePromises);
 
-        return {
-            correct,
-            wrong,
-            skipped,
-            total: questions.length,
-            percentage: (correct / questions.length) * 100
-        };
-    };
+      const finalRes = await api.post(`/tests/sessions/${sessionId}/complete`);
+      const finalSession = finalRes.data;
 
-    const formatTime = (seconds) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}:${secs < 10 ? '0' + secs : secs}`;
-    };
+      if (isAuto) {
+        alert('Time expired. Synchronizing final state.');
+      }
 
-    if (loading) return <div className="premium-bg flex-center" style={{ minHeight: '100vh', color: 'white' }}>
-        <div className="glass-card" style={{ padding: '2rem' }}>Loading assessment...</div>
-    </div>;
+      const payload = {
+        sectionName: finalSession.testTitle || testId,
+        totalQuestions: finalSession.totalQuestions || questions.length,
+        correct: finalSession.correctAnswers || finalSession.correctCount,
+        wrong: finalSession.wrongCount,
+        skipped: finalSession.skippedCount,
+        scorePercentage: finalSession.accuracyPercentage || finalSession.score || 0,
+        timeTaken: finalSession.durationSeconds || 1200 - timeLeft,
+      };
 
-    if (startModalVisible) {
-        return (
-            <div className="premium-bg flex-center" style={{ minHeight: '100vh' }}>
-                <div className="glass-card slide-up" style={{ maxWidth: '600px', width: '90%', padding: '3rem' }}>
-                    <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-                        <span style={{ fontSize: '3rem', marginBottom: '1rem', display: 'block' }}>🚀</span>
-                        <h2>Ready to Start?</h2>
-                        <p style={{ color: 'var(--text-dim)' }}>Section: <span style={{ color: 'var(--primary)', fontWeight: 700 }}>{testId.toUpperCase()}</span></p>
-                    </div>
-
-                    <div style={{
-                        background: 'rgba(245, 158, 11, 0.1)',
-                        borderLeft: '4px solid var(--warning)',
-                        padding: '1.25rem',
-                        borderRadius: 'var(--radius-md)',
-                        marginBottom: '2rem',
-                        display: 'flex',
-                        gap: '1rem'
-                    }}>
-                        <span style={{ fontSize: '1.2rem' }}>⚠️</span>
-                        <div style={{ fontSize: '0.9rem' }}>
-                            <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Strict Environment:</strong>
-                            You cannot exit or refresh once started. The timer begins immediately.
-                        </div>
-                    </div>
-
-                    <ul style={{ listStyle: 'none', padding: 0, marginBottom: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-dim)' }}>
-                            <span style={{ color: 'var(--primary)' }}>⏱</span> 20 Minutes Time Limit
-                        </li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-dim)' }}>
-                            <span style={{ color: 'var(--primary)' }}>🎯</span> 15 Questions to Answer
-                        </li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-dim)' }}>
-                            <span style={{ color: 'var(--primary)' }}>🔒</span> Answers can be locked (Confirm)
-                        </li>
-                    </ul>
-
-                    <div className="flex-center" style={{ gap: '1rem' }}>
-                        <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => navigate('/dashboard')}>
-                            Go Back
-                        </button>
-                        <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => {
-                            setStartModalVisible(false);
-                            setHasStarted(true);
-                            setLoading(true);
-                        }}>
-                            Begin Assessment
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
+      navigate(`/result/${testId}`, { state: { result: payload, questions, answers, confirmed } });
+    } catch (err) {
+      console.error("Submission failed", err);
+      const resultData = calculateResult();
+      navigate(`/result/${testId}`, { state: { result: { ...resultData, scorePercentage: resultData.percentage }, questions, answers, confirmed } });
+    } finally {
+      setAppLoading(false);
     }
+  }, [answers, confirmed, questions, timeLeft, testId, sessionId, navigate, calculateResult, setAppLoading]);
 
-    if (submitModalVisible) {
-        const selectedButUnconfirmed = Object.keys(answers).length - Object.keys(confirmed).length;
+ useEffect(() => {
+  if (!hasStarted) return;
+  if (timeLeft === 0) {
+   submitTest(true);
+   return;
+  }
+  const timer = setInterval(() => {
+   setTimeLeft(prev => prev - 1);
+  }, 1000);
+  return () => clearInterval(timer);
+ }, [timeLeft, hasStarted, submitTest]);
 
-        return (
-            <div className="premium-bg flex-center" style={{ minHeight: '100vh' }}>
-                <div className="glass-card slide-up" style={{ maxWidth: '480px', width: '90%', padding: '3rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>🏁</div>
-                    <h2 style={{ marginBottom: '0.5rem' }}>Final Submission</h2>
-                    <p style={{ color: 'var(--text-dim)', marginBottom: '2rem' }}>Review your progress before finishing.</p>
+ const handleOptionSelect = (option) => {
+  if (confirmed[currentQuestion]) return;
+  setAnswers({ ...answers, [currentQuestion]: option });
+ };
 
-                    <div style={{
-                        background: 'var(--surface)',
-                        borderRadius: 'var(--radius-md)',
-                        padding: '1.5rem',
-                        marginBottom: '2.5rem',
-                        textAlign: 'left',
-                        border: '1px solid var(--glass-border)'
-                    }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                            <span>Locked Answers:</span>
-                            <span style={{ color: 'var(--warning)', fontWeight: 700 }}>{Object.keys(confirmed).length}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                            <span>Flexible Selection:</span>
-                            <span style={{ color: 'var(--success)', fontWeight: 700 }}>{selectedButUnconfirmed > 0 ? selectedButUnconfirmed : 0}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span>Unattempted:</span>
-                            <span style={{ color: 'var(--error)', fontWeight: 700 }}>{questions.length - Object.keys(answers).length}</span>
-                        </div>
-                    </div>
+ const handleConfirm = () => {
+  setConfirmed(prev => ({ ...prev, [currentQuestion]: true }));
+  if (currentQuestion < questions.length - 1) {
+   setTimeout(() => setCurrentQuestion(curr => curr + 1), 600);
+  }
+ };
 
-                    <div style={{ display: 'flex', gap: '1rem' }}>
-                        <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setSubmitModalVisible(false)}>
-                            Keep Testing
-                        </button>
-                        <button className="btn btn-primary" style={{ flex: 1, background: 'var(--error)' }} onClick={() => submitTest(false)}>
-                            Submit Now
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )
-    }
+ const formatTime = (seconds) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs < 10 ? '0' + secs : secs}`;
+ };
 
-    if (!questions.length) return null;
+ if (loading) return (
+  <div className="premium-bg min-h-screen flex items-center justify-center p-6">
+   <div className="glass-card flex flex-col items-center gap-6 p-12">
+    <Loader2 className="w-12 h-12 text-primary animate-spin" />
+    <p className="text-base font-semibold uppercase tracking-widest text-primary animate-pulse">Initializing Neural Link...</p>
+   </div>
+  </div>
+ );
 
-    const q = questions[currentQuestion];
-    const opts = [q.optionA, q.optionB, q.optionC, q.optionD].filter(Boolean);
-    const isLocked = confirmed[currentQuestion];
-
+  if (startModalVisible) {
+    const isLight = theme === 'light';
+    
     return (
-        <div className="premium-bg" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-            {/* Header */}
-            <nav style={{
-                padding: '1rem 5%',
-                background: 'rgba(3, 0, 20, 0.7)',
-                backdropFilter: 'blur(20px)',
-                borderBottom: '1px solid var(--glass-border)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                position: 'sticky',
-                top: 0,
-                zIndex: 100
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '10px',
-                        background: 'var(--primary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 800,
-                        fontSize: '1.2rem'
-                    }}>L</div>
-                    <div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Assessment Mode</div>
-                        <div style={{ fontWeight: 700, textTransform: 'uppercase' }}>{testId.replace('-', ' ')}</div>
-                    </div>
-                </div>
+    <div className={`premium-bg min-h-screen flex items-center justify-center p-6 font-sans relative overflow-hidden transition-colors duration-500 animate-fade-in`}>
+      {/* Dynamic Ambiance */}
+      {!isLight && (
+        <>
+          <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-primary/10 rounded-full blur-[160px] animate-pulse" />
+          <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-secondary/10 rounded-full blur-[160px] animate-pulse [animation-delay:3s]" />
+        </>
+      )}
 
-                <div className={`timer-badge ${timeLeft < 60 ? 'danger' : timeLeft < 300 ? 'warning' : ''}`} style={{
-                    padding: '0.6rem 1.5rem',
-                    borderRadius: 'var(--radius-full)',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid var(--glass-border)',
-                    fontSize: '1.2rem',
-                    fontWeight: 800,
-                    fontFamily: 'monospace',
-                    color: timeLeft < 60 ? 'var(--error)' : 'var(--success)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    boxShadow: timeLeft < 60 ? '0 0 20px rgba(239, 68, 68, 0.2)' : 'none'
-                }}>
-                    <span style={{ fontSize: '1rem' }}>⏱</span> {formatTime(timeLeft)}
-                </div>
-            </nav>
+      <div className={`glass-card w-full max-w-[500px] p-6 md:p-10 animate-slide-up relative ${isLight ? 'bg-white shadow-elevated' : 'bg-bg-card border-border-main'} z-10 transition-all duration-500`}>
+        {/* Header Section */}
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/10 rounded-xl mb-6 border border-primary/20 transition-colors">
+            <Flag size={20} className="text-primary" />
+          </div>
+          <h1 className="text-2xl md:text-3xl font-bold mb-2 text-text-main tracking-tight">
+            Ready to Start Your Test
+          </h1>
 
-            <div className="test-body" style={{ padding: isMobile ? '1rem' : '2rem 5%', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '2rem', flex: 1, maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
-                {/* Question Area */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <div className="glass-card fade-in" style={{ padding: '3rem', marginBottom: '2rem', position: 'relative' }}>
-                        <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 600 }}>QUESTION {currentQuestion + 1} OF {questions.length}</span>
-                            <span style={{
-                                padding: '0.3rem 0.8rem',
-                                background: 'rgba(255,255,255,0.05)',
-                                borderRadius: 'var(--radius-sm)',
-                                fontSize: '0.7rem',
-                                color: 'var(--primary)',
-                                fontWeight: 700,
-                                border: '1px solid var(--glass-border)'
-                            }}>{(q.difficulty || 'MEDIUM').toUpperCase()}</span>
-                        </div>
-                        <h2 style={{ fontSize: '1.8rem', lineHeight: 1.4, fontWeight: 500 }}>{q.question}</h2>
-                    </div>
-
-                    <div className="options-grid" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.25rem' }}>
-                        {opts.map((opt, idx) => {
-                            const isSelected = answers[currentQuestion] === opt;
-                            return (
-                                <div
-                                    key={idx}
-                                    className={`option-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''} slide-up`}
-                                    style={{
-                                        padding: '1.5rem',
-                                        borderRadius: 'var(--radius-lg)',
-                                        background: isSelected ? 'var(--primary-glow)' : 'var(--surface)',
-                                        border: isSelected ? '1px solid var(--primary)' : '1px solid var(--glass-border)',
-                                        transition: 'var(--transition-base)',
-                                        cursor: isLocked ? 'default' : 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '1rem',
-                                        animationDelay: `${idx * 0.1}s`
-                                    }}
-                                    onClick={() => handleOptionSelect(opt)}
-                                >
-                                    <div style={{
-                                        width: '36px',
-                                        height: '36px',
-                                        borderRadius: '50%',
-                                        background: isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        fontWeight: 700,
-                                        color: isSelected ? 'white' : 'var(--text-dim)',
-                                        flexShrink: 0,
-                                        border: isSelected ? 'none' : '1px solid var(--glass-border)'
-                                    }}>{String.fromCharCode(65 + idx)}</div>
-                                    <span style={{ fontSize: '1.1rem', color: isSelected ? 'white' : 'var(--text-dim)' }}>{opt}</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    <div style={{ marginTop: 'auto', paddingTop: '3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <button
-                            className="btn btn-outline"
-                            disabled={currentQuestion === 0}
-                            onClick={() => setCurrentQuestion(curr => curr - 1)}
-                            style={{ padding: '0.8rem 1.5rem' }}
-                        >
-                            ← Previous
-                        </button>
-
-                        <div style={{ textAlign: 'center' }}>
-                            <button
-                                className={`btn ${isLocked ? 'btn-outline' : 'btn-primary'}`}
-                                disabled={isLocked || !answers[currentQuestion]}
-                                onClick={handleConfirm}
-                                style={{
-                                    minWidth: '200px',
-                                    background: isLocked ? 'rgba(16, 185, 129, 0.1)' : '',
-                                    borderColor: isLocked ? 'var(--success)' : '',
-                                    color: isLocked ? 'var(--success)' : ''
-                                }}
-                            >
-                                {isLocked ? '✔ Answer Locked' : 'Confirm & Lock'}
-                            </button>
-                            {!isLocked && answers[currentQuestion] && (
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Confirm to finish this question</div>
-                            )}
-                        </div>
-
-                        {currentQuestion < questions.length - 1 ? (
-                            <button className="btn btn-primary" onClick={() => setCurrentQuestion(curr => curr + 1)} style={{ padding: '0.8rem 1.5rem' }}>
-                                Next Question →
-                            </button>
-                        ) : (
-                            <button className="btn btn-primary" style={{ background: 'var(--secondary)', border: 'none' }} onClick={() => setSubmitModalVisible(true)}>
-                                Submit Assessment
-                            </button>
-                        )}
-                    </div>
-                </div>
-
-                {/* Right Panel/Navigator */}
-                <div style={{ width: isMobile ? '100%' : '320px', display: 'flex', flexDirection: isMobile ? 'column-reverse' : 'column', gap: '2rem' }}>
-                    <div className="glass-card" style={{ padding: '1.5rem' }}>
-                        <h4 style={{ marginBottom: '1.5rem', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Assessment Flow</h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
-                            {questions.map((ques, idx) => {
-                                const isConfirmed = confirmed[idx];
-                                const isSelected = answers[idx];
-                                const isCurrent = currentQuestion === idx;
-
-                                return (
-                                    <div
-                                        key={idx}
-                                        onClick={() => setCurrentQuestion(idx)}
-                                        style={{
-                                            aspectRatio: '1',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            borderRadius: '10px',
-                                            cursor: 'pointer',
-                                            fontSize: '0.9rem',
-                                            fontWeight: 700,
-                                            transition: 'var(--transition-base)',
-                                            background: isCurrent ? 'var(--primary)' : isConfirmed ? 'var(--warning)' : isSelected ? 'var(--success)' : 'var(--surface)',
-                                            color: isCurrent || isConfirmed || isSelected ? 'white' : 'var(--text-muted)',
-                                            border: isCurrent ? 'none' : '1px solid var(--glass-border)'
-                                        }}
-                                    >
-                                        {idx + 1}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    <div className="glass-card" style={{ padding: '1.5rem' }}>
-                        <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Status Legend</h4>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}>
-                                <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: 'var(--primary)' }}></div> Current
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}>
-                                <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: 'var(--warning)' }}></div> Locked
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}>
-                                <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: 'var(--success)' }}></div> Selected
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}>
-                                <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: 'var(--surface)', border: '1px solid var(--glass-border)' }}></div> Unvisited
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
-    );
+
+        {/* Content Section */}
+        <div className="space-y-8 mb-10">
+          {/* Rules Section */}
+          <div className={`p-5 rounded-xl border ${isLight ? 'bg-warning/10 border-warning/20' : 'bg-surface border-border-subtle shadow-inner'}`}>
+            <h3 className={`label-text mb-3 flex items-center gap-2 ${isLight ? 'text-warning' : 'text-warning'}`}>
+              ⚠️ Instructions
+            </h3>
+            <ul className="space-y-3">
+             <li className="flex items-start gap-4 text-sm font-normal text-text-sub">
+              <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-warning/60" />
+              Do not use outside help
+             </li>
+             <li className="flex items-start gap-4 text-sm font-normal text-text-sub">
+              <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-warning/60" />
+              Timer starts when you begin
+             </li>
+            </ul>
+          </div>
+
+          {/* Test Details */}
+          <div className="pt-6 border-t border-border-subtle font-sans">
+            <h3 className="label-text mb-6">Test Details</h3>
+            <div className="flex flex-wrap items-center justify-between gap-6 md:gap-4">
+              <DetailItem icon={Clock} label="Time" value="20 Mins" color="text-primary" isLight={isLight} />
+              <DetailItem icon={CheckCircle2} label="Questions" value="15 Qs" color="text-secondary" isLight={isLight} />
+
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-5">
+          <button 
+            className="btn btn-secondary flex-1"
+            onClick={() => {
+              const source = location.state?.source;
+              if (source === 'dashboard') {
+                navigate('/dashboard');
+              } else if (source === 'history') {
+                navigate('/history');
+              } else {
+                navigate('/practice-tests'); // Default or practice-tests
+              }
+            }}
+          >
+            Cancel
+          </button>
+          <button 
+            className="btn btn-primary flex-[1.5]"
+            onClick={() => {
+              setStartModalVisible(false);
+              setHasStarted(true);
+              setLoading(true);
+            }}
+          >
+            Start Test
+          </button>
+        </div>
+      </div>
+    </div>
+   );
+  }
+
+ if (submitModalVisible) {
+  const unconfirmed = Object.keys(answers).length - Object.keys(confirmed).length;
+  return (
+   <div className="premium-bg min-h-screen flex items-center justify-center p-6 animate-fade-in">
+    <div className="glass-card w-full max-w-[480px] animate-slide-up p-8 md:p-10 text-center">
+     <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-secondary/20 shadow-inner">
+      <CheckCircle2 size={32} className="text-secondary" />
+     </div>
+     <h2 className="text-xl font-bold text-text-main mb-1">Final Submission</h2>
+     <p className="label-text mb-8 text-[9px]">Verification required before uplink</p>
+
+     <div className="bg-surface rounded-2xl p-8 mb-10 space-y-4 text-left border border-border-subtle">
+      <SummaryRow label="Locked States" value={Object.keys(confirmed).length} color="text-warning" />
+      <SummaryRow label="Buffered Selection" value={unconfirmed} color="text-secondary" />
+      <SummaryRow label="Null Pointers" value={questions.length - Object.keys(answers).length} color="text-error" />
+     </div>
+
+     <div className="flex gap-4">
+      <button className="btn btn-secondary flex-1" onClick={() => setSubmitModalVisible(false)}>
+       Resume
+      </button>
+      <button className="btn btn-primary flex-1 !bg-secondary shadow-secondary/20 border-none" onClick={() => submitTest(false)}>
+       Uplink
+      </button>
+     </div>
+    </div>
+   </div>
+  )
+ }
+
+ if (!questions.length) return null;
+
+  const q = questions[currentQuestion];
+  const opts = [q.optionA, q.optionB, q.optionC, q.optionD].filter(Boolean);
+  const isLocked = confirmed[currentQuestion];
+
+  return (
+  <div className="premium-bg h-screen w-full flex flex-col font-sans transition-colors duration-500 overflow-hidden no-scrollbar animate-fade-in">
+   {/* Assessment Header - Refined Premium Style */}
+   <nav className="relative h-[60px] flex items-center justify-between px-6 md:px-10 bg-bg-card/60 backdrop-blur-2xl border-b border-border-subtle z-[100] shrink-0">
+    <div className="flex items-center gap-5">
+    <div className="flex items-center border-l border-border-subtle pl-5 py-2">
+      <span className="text-lg font-semibold text-text-main tracking-tight">Test in Progress</span>
+    </div>
+    </div>
+
+    <div className={`
+     flex items-center gap-3.5 px-6 py-2 rounded-full bg-surface border border-border-subtle font-mono font-bold text-xl transition-all duration-300 shadow-main
+     ${timeLeft < 60 ? 'text-error animate-pulse bg-error/5 border-error/20' : 
+     timeLeft < 300 ? 'text-warning bg-warning/5 border-warning/20' : 'text-success bg-success/5 border-success/20'}
+    `}>
+     <Clock size={16} className="shrink-0" />
+     {formatTime(timeLeft)}
+    </div>
+
+    <div className="flex items-center gap-4">
+      <button 
+       className="btn btn-secondary px-5 py-2.5 h-fit text-error border-error/30 hover:bg-error/10 hover:border-error/50"
+       onClick={async () => {
+         if (window.confirm("Cancel current session? Partial attempt will be recorded.")) {
+           try {
+             await api.post(`/tests/sessions/${sessionId}/abort`);
+           } catch (e) { console.error(e); }
+           navigate('/history');
+         }
+       }}
+      >
+       Cancel
+      </button>
+      <button 
+       className="btn btn-primary !bg-secondary px-5 py-2.5 h-fit shadow-secondary/20 border-none"
+       onClick={() => setSubmitModalVisible(true)}
+      >
+       Submit Test
+      </button>
+    </div>
+   </nav>
+
+   <main className="flex-1 max-w-[1240px] w-full mx-auto p-4 md:p-8 flex flex-col lg:flex-row gap-6 overflow-hidden">
+    {/* Core Terminal Area */}
+    <div className="flex-1 flex flex-col min-w-0 overflow-y-auto no-scrollbar">
+     <div className="glass-card glass-card-hover p-6 md:p-10 mb-6 relative group overflow-hidden">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="flex justify-between items-center mb-6">
+       <div className="flex items-center gap-4">
+        <span className="label-text mb-0 opacity-40 text-[9px]">Question {currentQuestion + 1} // {questions.length}</span>
+        <div className="w-1.5 h-1.5 bg-primary rounded-full shadow-[0_0_8px_var(--clr-primary)]" />
+       </div>
+       <div className="badge badge-primary text-[9px]">
+        {(q.difficulty || 'Standard')} Difficulty
+       </div>
+      </div>
+      <h2 className="text-xl md:text-2xl font-semibold text-text-main leading-tight mb-0">{q.question}</h2>
+     </div>
+
+     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+      {opts.map((opt, idx) => {
+       const isSelected = answers[currentQuestion] === opt;
+       return (
+        <button
+         key={idx}
+         disabled={isLocked}
+         className={`
+          flex items-center gap-5 p-5 rounded-xl transition-all duration-300 relative overflow-hidden group text-left border
+          ${isSelected 
+           ? 'bg-primary/10 border-primary/40 shadow-main ring-1 ring-primary/20' 
+           : 'bg-surface border-border-subtle hover:bg-surface-hover hover:border-border-main'}
+          ${isLocked ? 'cursor-default opacity-60' : 'cursor-pointer'}
+         `}
+         onClick={() => handleOptionSelect(opt)}
+        >
+         <div className={`
+          w-9 h-9 rounded-lg flex items-center justify-center shrink-0 font-bold text-xs transition-all duration-300
+          ${isSelected ? 'bg-primary text-white shadow-elevated' : 'bg-surface-hover text-text-muted group-hover:text-text-main border border-border-subtle'}
+         `}>
+          {String.fromCharCode(65 + idx)}
+         </div>
+         <span className={`text-sm font-semibold transition-colors ${isSelected ? 'text-text-main' : 'text-text-sub group-hover:text-text-main'}`}>
+          {opt}
+         </span>
+         {isSelected && <CheckCircle2 size={16} className="absolute top-4 right-4 text-primary" strokeWidth={3} />}
+        </button>
+       );
+      })}
+     </div>
+
+     {/* Control Dock */}
+     <div className="mt-auto flex items-center justify-between py-6">
+      <button 
+       className="btn btn-secondary px-6 flex items-center gap-2.5 disabled:opacity-20"
+       disabled={currentQuestion === 0}
+       onClick={() => setCurrentQuestion(curr => curr - 1)}
+      >
+       <ChevronLeft size={16} /> Prev
+      </button>
+
+      <div className="flex flex-col items-center gap-3">
+       <button
+        className={`
+         btn px-10 py-3.5 min-w-[200px] shadow-elevated transition-all
+         ${isLocked 
+          ? 'bg-success/5 border-success/40 text-success' 
+          : 'btn-primary'}
+         ${(!answers[currentQuestion] || isLocked) && 'opacity-50 pointer-events-none'}
+        `}
+        onClick={handleConfirm}
+       >
+        {isLocked ? 'Locked' : 'Save Answer'}
+       </button>
+       {!isLocked && answers[currentQuestion] && (
+        <span className="text-[9px] font-semibold text-primary uppercase tracking-widest animate-pulse">Awaiting confirmation</span>
+       )}
+      </div>
+
+      <button 
+       className="btn btn-primary px-6 flex items-center gap-2.5"
+       onClick={() => currentQuestion < questions.length - 1 ? setCurrentQuestion(curr => curr + 1) : setSubmitModalVisible(true)}
+      >
+       {currentQuestion < questions.length - 1 ? <>Next <ChevronRight size={16} /></> : 'Review'}
+      </button>
+     </div>
+    </div>
+
+    {/* Overview Panel */}
+    <div className="w-full lg:w-[320px] flex flex-col gap-6 shrink-0 h-fit">
+     <div className="glass-card p-6 shadow-main">
+      <div className="flex items-center gap-3 mb-6">
+       <div className="w-1 h-5 bg-primary rounded-full" />
+       <h4 className="label-text mb-0">Questions</h4>
+      </div>
+      <div className="grid grid-cols-5 gap-2.5">
+       {questions.map((_, idx) => {
+        const isConfirmed = confirmed[idx];
+        const isSelected = answers[idx];
+        const isCurrent = currentQuestion === idx;
+        return (
+         <button
+          key={idx}
+          onClick={() => setCurrentQuestion(idx)}
+          className={`
+           aspect-square rounded-lg flex items-center justify-center font-bold text-[10px] transition-all duration-300 border
+           ${isCurrent 
+            ? 'bg-primary border-transparent text-white scale-110 shadow-elevated z-10' 
+            : isConfirmed ? 'bg-warning border-transparent text-white' 
+            : isSelected ? 'bg-primary/20 border-primary/40 text-primary' 
+            : 'bg-surface border-border-subtle text-text-dim hover:border-border-main hover:text-text-main'}
+          `}
+         >
+          {idx + 1}
+         </button>
+        );
+       })}
+      </div>
+     </div>
+
+     <div className="glass-card p-6 border-dashed">
+      <h4 className="label-text mb-5 opacity-30">Status</h4>
+      <div className="space-y-3.5">
+       <LegendRow color="bg-primary shadow-sm" label="Current Question" />
+       <LegendRow color="bg-warning shadow-sm" label="Locked" />
+       <LegendRow color="bg-primary/20 border border-primary/40" label="Not Answered" />
+       <LegendRow color="bg-surface border border-border-subtle" label="Unvisited" />
+      </div>
+     </div>
+    </div>
+   </main>
+  </div>
+ );
 };
 
 export default TestPage;

@@ -7,29 +7,201 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  admin
-  student
+model Category {
+  id          String         @id @default(uuid())
+  name        String         @unique
+  description String?
+  createdAt   DateTime       @default(now())
+  tests       PracticeTest[]
+
+  @@map("category")
 }
 
-enum AuthProvider {
-  EMAIL
-  PHONE
+model PracticeTest {
+  id             String        @id @default(uuid())
+  title          String
+  categoryId     String
+  difficulty     Difficulty    @default(BEGINNER)
+  duration       Int
+  totalQuestions Int
+  tags           String[]
+  status         TestStatus    @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  category       Category      @relation(fields: [categoryId], references: [id])
+  questions      Question[]
+  sessions       TestSession[]
+
+  @@map("practice_test")
+}
+
+model Question {
+  id            String         @id @default(uuid())
+  content       String
+  options       Json
+  correctAnswer String
+  explanation   String?
+  difficulty    Difficulty     @default(BEGINNER)
+  testId        String?
+  createdAt     DateTime       @default(now())
+  test          PracticeTest?  @relation(fields: [testId], references: [id])
+  responses     UserResponse[]
+
+  @@map("question")
 }
 
 model User {
-  id            String       @id @default(uuid())
-  username      String?      @unique
-  name          String?
-  email         String?      @unique
-  password      String?      // Added for password login
-  auth_provider AuthProvider @default(EMAIL)
-  tokenVersion  Int          @default(0)
-  role          UserRole     @default(student)
-  createdAt     DateTime     @default(now())
-  results       TestResult[]
+  id               String         @id @default(uuid())
+  username         String?        @unique
+  name             String?
+  email            String?        @unique
+  password         String?
+  auth_provider    AuthProvider   @default(EMAIL)
+  tokenVersion     Int            @default(0)
+  role             UserRole       @default(student)
+  createdAt        DateTime       @default(now())
+  currentStreak    Int            @default(0)
+  longestStreak    Int            @default(0)
+  lastActivityDate DateTime?
+  totalPoints      Int            @default(0)
+  totalXP          Int            @default(0)
+  level            Int            @default(1)
+  professionalFocus String?
+  bio               String?
+  isVerified        Boolean        @default(false)
+  hasAlphaAccess    Boolean        @default(false)
+  avatarUrl         String?
+  refreshTokens    RefreshToken[]
+  sessions         TestSession[]
+  performance      PerformanceMetric[]
+  goals            UserGoal[]
+  settings         UserSettings?
+  xpTransactions   XpTransaction[]
+  
+  // Coding relations
+  codingSubmissions CodingSubmission[]
+  solvedCodingProblems UserSolvedProblem[]
+  savedCodingProblems SavedCodingProblem[]
 
   @@map("user")
+}
+
+model XpTransaction {
+  id        String      @id @default(uuid())
+  userId    String
+  sessionId String      @unique
+  amount    Int
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session   TestSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("xp_transaction")
+}
+
+model PerformanceMetric {
+  id             String   @id @default(uuid())
+  userId         String
+  date           DateTime @db.Date
+  testsCompleted Int      @default(0)
+  totalScore     Float    @default(0)
+  avgAccuracy    Float    @default(0)
+  totalTimeMinute Int      @default(0)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("performance_metric")
+}
+
+model TestSession {
+  id                 String         @id @default(uuid())
+  userId             String
+  testId             String
+  testTitle          String?
+  category           String?
+  status             SessionStatus  @default(IN_PROGRESS)
+  totalQuestions     Int            @default(0)
+  attemptedQuestions Int            @default(0)
+  correctAnswers     Int            @default(0)
+  accuracyPercentage Float?
+  durationSeconds    Int?
+  startedAt          DateTime       @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  // Legacy fields kept for compatibility during migration
+  startTime          DateTime       @default(now())
+  endTime            DateTime?
+  duration           Int?
+  score              Float?
+  correctCount       Int            @default(0)
+  wrongCount         Int            @default(0)
+  skippedCount       Int            @default(0)
+
+  test               PracticeTest   @relation(fields: [testId], references: [id])
+  user               User           @relation(fields: [userId], references: [id])
+  responses          UserResponse[]
+  xpTransaction      XpTransaction?
+
+  @@index([userId, status])
+  @@index([testId])
+  @@index([completedAt])
+  @@map("test_session")
+}
+
+model UserResponse {
+  id             String      @id @default(uuid())
+  sessionId      String
+  questionId     String
+  selectedOption String?
+  isCorrect      Boolean     @default(false)
+  timeSpent      Int?
+  createdAt      DateTime    @default(now())
+  question       Question    @relation(fields: [questionId], references: [id])
+  session        TestSession @relation(fields: [sessionId], references: [id])
+
+  @@map("user_response")
+}
+
+model UserGoal {
+  id           String     @id @default(uuid())
+  userId       String
+  type         GoalType   @default(DAILY)
+  targetValue  Int
+  currentValue Int        @default(0)
+  status       GoalStatus @default(ON_TRACK)
+  startDate    DateTime   @default(now())
+  endDate      DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  user         User       @relation(fields: [userId], references: [id])
+
+  @@unique([userId, type])
+  @@map("user_goal")
+}
+
+model UserSettings {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  theme               String   @default("light")
+  appearanceMode      String   @default("system")
+  notifications       Boolean  @default(true)
+  preferredCategories String[]
+  defaultTestBehavior String?
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_token")
 }
 
 model EmailOtp {
@@ -43,89 +215,203 @@ model EmailOtp {
   @@index([email])
 }
 
-model TestResult {
-  id              Int      @id @default(autoincrement())
-  userId          String
-  user            User     @relation(fields: [userId], references: [id])
-  sectionName     String
-  totalQuestions  Int
-  correct         Int
-  wrong           Int
-  skipped         Int
-  scorePercentage Decimal  @db.Decimal(5, 2)
-  timeTaken       Int
-  userAnswers     Json?
-  attemptDate     DateTime @default(now())
+model CodingProblem {
+  id               String               @id @default(uuid())
+  slug             String               @unique
+  title            String
+  shortDescription String?
+  description      String               @db.Text
+  difficulty       CodingDifficulty     @default(EASY)
+  constraints      String?              @db.Text
+  inputFormat      String?              @db.Text
+  outputFormat     String?              @db.Text
+  explanation      String?              @db.Text
+  editorial        String?              @db.Text
+  estimatedMinutes Int                  @default(20)
+  isPublished      Boolean              @default(true)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  
+  tags             CodingProblemTag[]
+  examples         CodingProblemExample[]
+  testCases        CodingProblemTestCase[]
+  starterCode      StarterCodeTemplate[]
+  submissions      CodingSubmission[]
+  savedBy          SavedCodingProblem[]
+  solvedBy         UserSolvedProblem[]
+  hints            CodingProblemHint[]
 
-  @@map("test_result")
+  @@map("coding_problem")
 }
 
-model QuantitativeQuestion {
-  id            Int      @id @default(autoincrement())
-  question      String
-  optionA       String
-  optionB       String
-  optionC       String
-  optionD       String
-  correctAnswer String
-  difficulty    String
-  createdAt     DateTime @default(now())
+model CodingProblemTag {
+  id        String        @id @default(uuid())
+  name      String
+  problemId String
+  problem   CodingProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
-  @@map("quantitative_question")
+  @@unique([name, problemId])
+  @@map("coding_problem_tag")
 }
 
-model LogicalQuestion {
-  id            Int      @id @default(autoincrement())
-  question      String
-  optionA       String
-  optionB       String
-  optionC       String
-  optionD       String
-  correctAnswer String
-  difficulty    String
-  createdAt     DateTime @default(now())
+model CodingProblemExample {
+  id          String        @id @default(uuid())
+  problemId   String
+  input       String        @db.Text
+  output      String        @db.Text
+  explanation String?       @db.Text
+  order       Int           @default(0)
+  problem     CodingProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
-  @@map("logical_question")
+  @@map("coding_problem_example")
 }
 
-model VerbalQuestion {
-  id            Int      @id @default(autoincrement())
-  question      String
-  optionA       String
-  optionB       String
-  optionC       String
-  optionD       String
-  correctAnswer String
-  difficulty    String
-  createdAt     DateTime @default(now())
+model CodingProblemTestCase {
+  id             String        @id @default(uuid())
+  problemId      String
+  input          String        @db.Text
+  expectedOutput String        @db.Text
+  isSample       Boolean       @default(false)
+  isHidden       Boolean       @default(true)
+  order          Int           @default(0)
+  problem        CodingProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
-  @@map("verbal_question")
+  @@map("coding_problem_test_case")
 }
 
-model DIQuestion {
-  id            Int      @id @default(autoincrement())
-  question      String
-  optionA       String
-  optionB       String
-  optionC       String
-  optionD       String
-  correctAnswer String
-  difficulty    String
-  createdAt     DateTime @default(now())
+model StarterCodeTemplate {
+  id          String              @id @default(uuid())
+  problemId   String
+  language    ProgrammingLanguage
+  fileName    String
+  starterCode String              @db.Text
+  problem     CodingProblem       @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
-  @@map("di_question")
+  @@unique([problemId, language])
+  @@map("starter_code_template")
 }
 
-model DSAQuestion {
-  id            Int      @id @default(autoincrement())
-  question      String
-  optionA       String
-  optionB       String
-  optionC       String
-  optionD       String
-  correctAnswer String
-  difficulty    String
-  createdAt     DateTime @default(now())
+model CodingProblemHint {
+  id        String        @id @default(uuid())
+  problemId String
+  content   String        @db.Text
+  order     Int           @default(0)
+  problem   CodingProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
-  @@map("dsa_question")
+  @@map("coding_problem_hint")
+}
+
+model CodingSubmission {
+  id           String              @id @default(uuid())
+  userId       String
+  problemId    String
+  language     ProgrammingLanguage
+  sourceCode   String              @db.Text
+  verdict      SubmissionVerdict   @default(PENDING)
+  runtimeMs    Int?
+  memoryKb     Int?
+  passedCount  Int                 @default(0)
+  totalCount   Int                 @default(0)
+  output       String?             @db.Text
+  errorMessage String?             @db.Text
+  createdAt    DateTime            @default(now())
+  
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem      CodingProblem       @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@map("coding_submission")
+}
+
+model UserSolvedProblem {
+  id           String        @id @default(uuid())
+  userId       String
+  problemId    String
+  firstSolvedAt DateTime     @default(now())
+  lastSolvedAt  DateTime     @default(now())
+  bestRuntimeMs Int?
+  bestMemoryKb  Int?
+  solvedCount   Int          @default(1)
+  
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem      CodingProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, problemId])
+  @@map("user_solved_problem")
+}
+
+model SavedCodingProblem {
+  id        String        @id @default(uuid())
+  userId    String
+  problemId String
+  createdAt DateTime      @default(now())
+  
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem   CodingProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, problemId])
+  @@map("saved_coding_problem")
+}
+
+enum CodingDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum SubmissionVerdict {
+  ACCEPTED
+  WRONG_ANSWER
+  RUNTIME_ERROR
+  TIME_LIMIT_EXCEEDED
+  COMPILATION_ERROR
+  MEMORY_LIMIT_EXCEEDED
+  PENDING
+}
+
+enum ProgrammingLanguage {
+  JAVASCRIPT
+  PYTHON
+  JAVA
+  CPP
+  C
+}
+
+enum UserRole {
+  admin
+  student
+}
+
+enum AuthProvider {
+  EMAIL
+  PHONE
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum TestStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
+enum SessionStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABORTED
+}
+
+enum GoalType {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum GoalStatus {
+  ON_TRACK
+  BEHIND
+  COMPLETED
 }

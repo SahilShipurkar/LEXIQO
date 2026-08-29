@@ -1,71 +1,72 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import './Login.css';
 
 const SetupUsername = () => {
-    const [username, setUsernameInput] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const { setUsername } = useAuth();
-    const navigate = useNavigate();
+ const [username, setUsernameInput] = useState('');
+ const [loading, setLoading] = useState(false);
+ const [error, setError] = useState('');
+  const { setUsername, setAppLoading } = useAuth();
+  const navigate = useNavigate();
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-        try {
-            await setUsername(username);
-            navigate('/dashboard');
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to set username');
-        } finally {
-            setLoading(false);
-        }
-    };
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setAppLoading(true);
+  setError('');
+  try {
+   await setUsername(username);
+   navigate('/dashboard');
+  } catch (err) {
+   setError(err.response?.data?.message || 'Failed to set username');
+  } finally {
+   setLoading(false);
+   setAppLoading(false);
+  }
+ };
 
-    return (
-        <div className="premium-bg flex-center" style={{ minHeight: '100vh', padding: '1rem' }}>
-            <div className="glass-card slide-up" style={{ maxWidth: '400px', width: '90%', padding: '3rem' }}>
-                <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-                    <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Choose Username</h2>
-                    <p style={{ color: 'var(--text-dim)' }}>Set a unique username to continue.</p>
-                </div>
+ return (
+  <div className="premium-bg min-h-screen flex items-center justify-center p-4 md:p-6 text-text-main font-sans relative transition-colors duration-500">
+    {/* Decorative Blobs */}
+    <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] animate-pulse" />
+    <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary/10 rounded-full blur-[120px] animate-pulse [animation-delay:2s]" />
 
-                {error && (
-                    <div className="glass-card" style={{
-                        background: 'rgba(239, 64, 64, 0.1)',
-                        border: '1px solid var(--error)',
-                        color: 'var(--error)',
-                        padding: '1rem',
-                        marginBottom: '1.5rem',
-                        fontSize: '0.9rem',
-                        textAlign: 'center'
-                    }}>
-                        {error}
-                    </div>
-                )}
+  <div className="glass-card w-full max-w-[400px] animate-slide-up relative z-10 p-6 md:p-8">
+   <div className="text-center mb-8">
+    <h1 className="text-2xl font-bold mb-2">Set Your Username</h1>
+    <p className="text-text-sub text-xs font-normal">Choose a unique username for your account</p>
+   </div>
 
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div className="input-group">
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '0.5rem', display: 'block' }}>Username</label>
-                        <input
-                            type="text"
-                            placeholder="e.g. janesmith"
-                            value={username}
-                            onChange={(e) => setUsernameInput(e.target.value)}
-                            required
-                            minLength="3"
-                        />
-                    </div>
+   {error && (
+     <div className="badge badge-error w-full text-center py-3 mb-6 font-semibold">
+      {error}
+     </div>
+   )}
 
-                    <button type="submit" className="btn btn-primary" disabled={loading} style={{ marginTop: '1rem' }}>
-                        {loading ? 'Saving Profile...' : 'Save & Continue'}
-                    </button>
-                </form>
-            </div>
-        </div>
-    );
+   <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="space-y-2 text-center">
+     <label className="label-text">Username</label>
+     <input
+      type="text"
+      placeholder="e.g. alex_smith"
+      value={username}
+      onChange={(e) => setUsernameInput(e.target.value)}
+      required
+      minLength="3"
+      className="form-input text-center"
+     />
+     <p className="text-[10px] text-text-muted mt-2 lowercase">Minimum 3 characters required</p>
+    </div>
+
+    <div className="pt-2">
+     <button type="submit" className="btn btn-primary w-full border-none" disabled={loading}>
+      {loading ? 'Setting Username...' : 'Continue to Dashboard'}
+     </button>
+    </div>
+   </form>
+  </div>
+  </div>
+ );
 };
 
 export default SetupUsername;

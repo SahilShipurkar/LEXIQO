@@ -1,122 +1,115 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import './LandingPage.css';
-import '../index.css';
+import { useAuth } from '../context/AuthContext';
+import { Mail, MapPin, Send } from 'lucide-react';
+import LandingNavbar from '../components/LandingNavbar';
+import BackgroundVideo from '../components/BackgroundVideo';
 
 const Contact = () => {
-    const navigate = useNavigate();
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const { setAppLoading } = useAuth(); // Keep for potential future actions
 
-    return (
-        <div className="premium-landing" style={{ overflowY: 'auto' }}>
-            {/* Navbar */}
-            <nav className="premium-nav" style={{ position: 'sticky', top: 0, background: 'rgba(3, 0, 20, 0.7)', backdropFilter: 'blur(20px)' }}>
-                <div
-                    className="nav-logo"
-                    onClick={() => navigate('/')}
-                    style={{ display: 'flex', alignItems: 'center', gap: '10px', zIndex: 102 }}
-                >
-                    <span style={{ fontSize: '1.5rem', fontWeight: 800 }}>LEXIQO</span>
-                </div>
+  return (
+    <div className="relative min-h-screen text-slate-200 overflow-y-auto font-sans selection:bg-indigo-500/30">
+      <BackgroundVideo />
+      <LandingNavbar />
 
-                {/* Desktop Nav Links */}
-                <div className="nav-links desktop-only">
-                    <span className="nav-link" onClick={() => navigate('/')}>Home</span>
-                    <span className="nav-link" onClick={() => navigate('/about')}>About</span>
-                    <span className="nav-link active">Contact</span>
-                </div>
-
-                {/* Desktop Actions */}
-                <div className="nav-actions desktop-only">
-                    <button
-                        className="nav-cta"
-                        onClick={() => navigate('/register')}
-                    >
-                        Register Now
-                    </button>
-                </div>
-
-                {/* Mobile Hamburger */}
-                <div
-                    className="mobile-only"
-                    style={{ zIndex: 102, cursor: 'pointer', padding: '0.5rem' }}
-                    onClick={() => setIsMenuOpen(!isMenuOpen)}
-                >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-main)' }}>
-                        {isMenuOpen ? (
-                            <path d="M18 6L6 18M6 6l12 12" />
-                        ) : (
-                            <path d="M3 12h18M3 6h18M3 18h18" />
-                        )}
-                    </svg>
-                </div>
-
-                {/* Mobile Menu Overlay */}
-                {isMenuOpen && (
-                    <div className="mobile-menu-overlay mobile-only" style={{
-                        position: 'fixed',
-                        top: 0,
-                        right: 0,
-                        width: '100%',
-                        height: '100vh',
-                        background: 'rgba(3, 0, 20, 0.95)',
-                        backdropFilter: 'blur(20px)',
-                        zIndex: 101,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        gap: '2rem',
-                        padding: '2rem'
-                    }}>
-                        <span className="nav-link" onClick={() => { setIsMenuOpen(false); navigate('/'); }} style={{ fontSize: '1.5rem' }}>Home</span>
-                        <span className="nav-link" onClick={() => { setIsMenuOpen(false); navigate('/about'); }} style={{ fontSize: '1.5rem' }}>About</span>
-                        <span className="nav-link active" onClick={() => setIsMenuOpen(false)} style={{ fontSize: '1.5rem' }}>Contact</span>
-                        <button
-                            className="nav-cta"
-                            onClick={() => { setIsMenuOpen(false); navigate('/register'); }}
-                            style={{ marginTop: '1rem', width: '200px', textAlign: 'center' }}
-                        >
-                            Register Now
-                        </button>
-                    </div>
-                )}
-            </nav>
-
-            <div className="container slide-up" style={{ padding: '4rem 2rem', maxWidth: '800px', margin: '0 auto' }}>
-                <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-                    <h1 style={{ fontSize: '3rem', marginBottom: '1rem' }}>Get in Touch</h1>
-                    <p style={{ fontSize: '1.2rem', color: 'var(--text-dim)' }}>
-                        Questions? Feedback? Just want to say hi? We'd love to verify your doubts.
-                    </p>
-                </div>
-
-                <div className="glass-card" style={{ padding: '3rem' }}>
-                    <form onSubmit={(e) => { e.preventDefault(); alert('We have received your message!'); navigate('/'); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        <div className="input-group">
-                            <label style={{ color: 'var(--text-dim)', marginBottom: '0.5rem', display: 'block' }}>Name</label>
-                            <input type="text" placeholder="Your Name" style={{ width: '100%', padding: '1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-md)', color: 'white' }} required />
-                        </div>
-                        <div className="input-group">
-                            <label style={{ color: 'var(--text-dim)', marginBottom: '0.5rem', display: 'block' }}>Email</label>
-                            <input type="email" placeholder="you@example.com" style={{ width: '100%', padding: '1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-md)', color: 'white' }} required />
-                        </div>
-                        <div className="input-group">
-                            <label style={{ color: 'var(--text-dim)', marginBottom: '0.5rem', display: 'block' }}>Message</label>
-                            <textarea placeholder="How can we help?" rows="5" style={{ width: '100%', padding: '1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-md)', color: 'white', resize: 'vertical', fontFamily: 'inherit' }} required></textarea>
-                        </div>
-                        <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem', padding: '1rem', width: '100%', fontSize: '1.1rem' }}>Send Message</button>
-                    </form>
-                </div>
-
-                <div style={{ marginTop: '4rem', textAlign: 'center', color: 'var(--text-dim)' }}>
-                    <h3 style={{ marginBottom: '1rem', color: 'white' }}>Contact Info</h3>
-                    <p style={{ marginBottom: '0.5rem' }}>📧 sahilshipurkar88@gmail.com</p>
-                    <p>📍BVCOE Kolhapur, India</p>
-                </div>
-            </div>
+      <div className="max-w-[700px] mx-auto px-6 pt-32 pb-12 animate-slide-up">
+        <div className="text-center mb-12 space-y-4">
+          <h1 className="text-3xl md:text-5xl lg:text-5xl font-bold uppercase tracking-tight leading-tight text-white m-0">
+            Get in <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500">Touch</span>
+          </h1>
+          <p className="text-base md:text-lg text-slate-400 font-light max-w-xl mx-auto leading-relaxed ">
+            Questions? Feedback? Need assistance? Our intelligence support team is on standby.
+          </p>
         </div>
-    );
+
+        <div className="relative group max-w-2xl mx-auto">
+          {/* Decorative Glow */}
+          <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-3xl blur opacity-20 group-hover:opacity-40 transition-opacity duration-1000" />
+          
+          <div className="relative glass-card border-white/10 bg-white/5 backdrop-blur-xl rounded-3xl p-8 md:p-10 shadow-2xl overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            
+            <form 
+              onSubmit={(e) => { e.preventDefault(); alert('Briefing transmitted successfully.'); navigate('/'); }}
+              className="space-y-6"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex flex-col gap-2 text-left">
+                  <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 ml-1">Operative Identity</label>
+                  <input 
+                    type="text" 
+                    placeholder="Full Name" 
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500/50 focus:bg-white/[0.08] transition-all placeholder:text-white/20 shadow-inner" 
+                    required 
+                  />
+                </div>
+                <div className="flex flex-col gap-2 text-left">
+                  <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 ml-1">Communication Vector</label>
+                  <input 
+                    type="email" 
+                    placeholder="uplink@network.com" 
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500/50 focus:bg-white/[0.08] transition-all placeholder:text-white/20 shadow-inner" 
+                    required 
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 text-left">
+                <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 ml-1">Mission Briefing</label>
+                <textarea 
+                  placeholder="Outline your inquiry or feedback..." 
+                  rows="4" 
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500/50 focus:bg-white/[0.08] transition-all placeholder:text-white/20 shadow-inner resize-none" 
+                  required 
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                className="w-full bg-gradient-to-r from-indigo-600 to-pink-500 hover:from-indigo-500 hover:to-pink-400 text-white py-4 text-[11px] font-bold uppercase tracking-[0.3em] rounded-xl shadow-xl shadow-indigo-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 border-none cursor-pointer"
+              >
+                Transmit Briefing
+                <Send size={16} />
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <div className="mt-16 relative">
+          <div className="relative glass-card border-white/5 bg-white/[0.02] backdrop-blur-xl rounded-[3rem] py-16 px-8 text-center overflow-hidden shadow-2xl">
+            {/* Subtle Highlight */}
+            <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            
+            <h3 className="text-[9px] font-bold uppercase tracking-[0.5em] mb-12 leading-none text-slate-500 relative z-10">Station Access Coordinates</h3>
+            
+            <div className="flex flex-col md:flex-row items-center justify-center gap-12 md:gap-24 relative z-10">
+              <div className="flex flex-col items-center gap-5 group cursor-pointer">
+                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-600/20 group-hover:border-indigo-500/50 transition-all duration-500 group-hover:shadow-[0_0_20px_rgba(79,70,229,0.3)]">
+                  <Mail size={20} className="text-slate-400 group-hover:text-white transition-colors duration-500" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.4em] text-slate-600 block leading-none">Secure Mail</span>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 group-hover:text-white transition-colors duration-500 ">sahilshipurkar88@gmail.com</span>
+                </div>
+              </div>
+              
+              <div className="flex flex-col items-center gap-5 group cursor-pointer">
+                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-600/20 group-hover:border-indigo-500/50 transition-all duration-500 group-hover:shadow-[0_0_20px_rgba(79,70,229,0.3)]">
+                  <MapPin size={20} className="text-slate-400 group-hover:text-white transition-colors duration-500" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.4em] text-slate-600 block leading-none">Base Station</span>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 group-hover:text-white transition-colors duration-500 ">BVCOE Kolhapur, India</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default Contact;

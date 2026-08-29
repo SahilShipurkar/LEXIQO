@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { OtpService } from '../otp/otp.service';
@@ -24,6 +24,139 @@ export class AuthService {
         );
     }
 
+    private formatUserResponse(user: any) {
+        const baseUrl = this.configService.get('BACKEND_URL') || 'http://localhost:3000';
+        let picture = (user as any).avatarUrl;
+        if (picture && picture.startsWith('/uploads/')) {
+            picture = `${baseUrl}${picture}`;
+        }
+
+        return {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            username: user.username,
+            name: user.name,
+            currentStreak: user.currentStreak,
+            longestStreak: user.longestStreak,
+            totalXP: (user as any).totalXP,
+            level: Math.floor(((user as any).totalXP || 0) / 500) + 1,
+            professionalFocus: (user as any).professionalFocus,
+            bio: (user as any).bio,
+            isVerified: (user as any).isVerified,
+            hasAlphaAccess: (user as any).hasAlphaAccess,
+            picture: picture || (user as any).picture,
+            avatarUrl: (user as any).avatarUrl,
+        };
+    }
+
+    async generateTokens(user: any) {
+        const payload = {
+            userId: user.id,
+            email: user.email,
+            role: user.role
+        };
+
+        const [accessToken, refreshToken] = await Promise.all([
+            this.jwtService.signAsync(payload, {
+                secret: this.configService.get<string>('JWT_SECRET'),
+                expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') as any,
+            }),
+            this.jwtService.signAsync(payload, {
+                secret: this.configService.get<string>('REFRESH_TOKEN_SECRET'),
+                expiresIn: this.configService.get<string>('REFRESH_TOKEN_EXPIRES_IN') as any,
+            }),
+        ]);
+
+        return {
+            access_token: accessToken,
+            refresh_token: refreshToken,
+        };
+    }
+
+    async updateRefreshToken(userId: string, refreshToken: string, expiresInDays: number = 7) {
+        const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+        
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+
+        await (this.prisma as any).refreshToken.create({
+            data: {
+                token: hashedRefreshToken,
+                userId: userId,
+                expiresAt: expiresAt,
+            },
+        });
+    }
+
+
+    async decodeRefreshToken(token: string) {
+        try {
+            return this.jwtService.decode(token) as any;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    async refreshTokens(refreshToken: string) {
+        try {
+            const payload = await this.jwtService.verifyAsync(refreshToken, {
+                secret: this.configService.get<string>('REFRESH_TOKEN_SECRET'),
+            });
+
+            const savedTokens = await (this.prisma as any).refreshToken.findMany({
+                where: { userId: payload.userId },
+            });
+
+            if (!savedTokens.length) throw new ForbiddenException('Access Denied');
+
+            let matchingToken: any = null;
+            for (const t of savedTokens) {
+                const isMatch = await bcrypt.compare(refreshToken, t.token);
+                if (isMatch) {
+                    matchingToken = t;
+                    break;
+                }
+            }
+
+            if (!matchingToken) throw new ForbiddenException('Access Denied');
+            if (new Date() > matchingToken.expiresAt) {
+                await (this.prisma as any).refreshToken.delete({ where: { id: matchingToken.id } });
+                throw new ForbiddenException('Token expired');
+            }
+
+            const user = await this.prisma.user.findUnique({ where: { id: payload.userId } });
+            if (!user) throw new ForbiddenException('User not found');
+
+            const tokens = await this.generateTokens(user);
+            
+            await (this.prisma as any).refreshToken.delete({ where: { id: matchingToken.id } });
+            await this.updateRefreshToken(user.id, tokens.refresh_token);
+
+
+            return {
+                ...tokens,
+                user: this.formatUserResponse(user)
+            };
+        } catch (e) {
+            throw new ForbiddenException('Invalid refresh token');
+        }
+    }
+
+    async logout(userId: string, refreshToken: string) {
+        const savedTokens = await (this.prisma as any).refreshToken.findMany({
+            where: { userId },
+        });
+
+        for (const t of savedTokens) {
+            const isMatch = await bcrypt.compare(refreshToken, t.token);
+            if (isMatch) {
+                await (this.prisma as any).refreshToken.delete({ where: { id: t.id } });
+                break;
+            }
+        }
+    }
+
     async verifyGoogleToken(token: string) {
         try {
             const ticket = await this.googleClient.verifyIdToken({
@@ -44,27 +177,21 @@ export class AuthService {
                     data: {
                         email,
                         name: `${given_name} ${family_name}`.trim(),
-                        auth_provider: 'EMAIL', // Or 'GOOGLE' if enum allows
+                        auth_provider: 'EMAIL',
                         role: 'student',
-                        username: email.split('@')[0] + Math.floor(Math.random() * 1000), // Ensure basic unique username
+                        username: email.split('@')[0] + Math.floor(Math.random() * 1000),
                     }
                 });
             }
 
-            const jwtPayload = {
-                userId: user.id,
-                email: user.email,
-                role: user.role
-            };
+            const tokens = await this.generateTokens(user);
+            await this.updateRefreshToken(user.id, tokens.refresh_token);
 
             return {
-                access_token: this.jwtService.sign(jwtPayload),
+                ...tokens,
                 user: {
-                    id: user.id,
-                    email: user.email,
-                    role: user.role,
-                    username: user.username,
-                    picture: picture
+                    ...this.formatUserResponse(user),
+                    picture: picture || this.formatUserResponse(user).picture, // Google picture fallback
                 }
             };
         } catch (error) {
@@ -73,7 +200,6 @@ export class AuthService {
         }
     }
 
-    // Legacy method for Passport Strategy (Redirect Flow)
     async googleLogin(reqUser: any) {
         if (!reqUser) throw new BadRequestException('No user from google');
 
@@ -92,19 +218,14 @@ export class AuthService {
             });
         }
 
-        const payload = {
-            userId: user.id,
-            email: user.email,
-            role: user.role
-        };
+        const tokens = await this.generateTokens(user);
+        await this.updateRefreshToken(user.id, tokens.refresh_token);
 
         return {
-            access_token: this.jwtService.sign(payload),
+            ...tokens,
             user: {
-                id: user.id,
-                email: user.email,
-                role: user.role,
-                isNewUser: !user.username
+                ...this.formatUserResponse(user),
+                isNewUser: !user.username,
             }
         };
     }
@@ -123,7 +244,6 @@ export class AuthService {
         let user = await this.prisma.user.findUnique({ where: { email } });
 
         if (!user) {
-            // Register new user (minimal)
             user = await this.prisma.user.create({
                 data: {
                     email,
@@ -133,19 +253,14 @@ export class AuthService {
             });
         }
 
-        const payload = {
-            userId: user.id,
-            email: user.email,
-            role: user.role
-        };
+        const tokens = await this.generateTokens(user);
+        await this.updateRefreshToken(user.id, tokens.refresh_token);
 
         return {
-            access_token: this.jwtService.sign(payload),
+            ...tokens,
             user: {
-                id: user.id,
-                email: user.email,
-                role: user.role,
-                isNewUser: !user.username
+                ...this.formatUserResponse(user),
+                isNewUser: !user.username,
             }
         };
     }
@@ -154,15 +269,13 @@ export class AuthService {
         if (!email || !otp) throw new BadRequestException('Email and OTP are required');
         const normalizedEmail = email.toLowerCase().trim();
 
-        // Ensure user exists before issuing a reset token
         const user = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
         if (!user) {
             throw new BadRequestException('No account found with this email address');
         }
 
-        const isValid = await this.otpService.verifyEmailOtp(normalizedEmail, otp, true); // Consume it
+        const isValid = await this.otpService.verifyEmailOtp(normalizedEmail, otp, true);
 
-        // Generate a short-lived reset token
         const resetToken = this.jwtService.sign(
             { email: normalizedEmail, purpose: 'reset-password' },
             { expiresIn: '15m' }
@@ -184,21 +297,22 @@ export class AuthService {
         if (otp) {
             const isOtpValid = await this.otpService.verifyEmailOtp(email, otp);
             if (!isOtpValid) throw new BadRequestException('Invalid or expired OTP');
-        } else {
-            // For now, allow registration without OTP if not provided? 
-            // Or enforce it? User asked for it. 
-            // I'll enforce it if they use the UI that sends it. 
-            // But to be safe, I'll make it optional in backend for backward compatibility unless user strictly wants forced.
-            // "add sntp opt authentication...". I'll default to optional but UI will enforce it.
         }
 
-        const existingUser = await this.prisma.user.findFirst({
-            where: { OR: [{ email }, { username }] }
-        });
-
-        if (existingUser) {
-            throw new BadRequestException('User with this email or username already exists');
+        if (email) {
+            const existingEmail = await this.prisma.user.findUnique({ where: { email } });
+            if (existingEmail) {
+                throw new BadRequestException('Email already registered');
+            }
         }
+
+        if (username) {
+            const existingUsername = await this.prisma.user.findUnique({ where: { username } });
+            if (existingUsername) {
+                throw new BadRequestException('Username already taken');
+            }
+        }
+
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -216,13 +330,12 @@ export class AuthService {
         return { message: 'User registered successfully' };
     }
 
-    async login(data: any) {
+    async login(data: any, rememberMe: boolean = true) {
         const { password } = data;
-        const input = data.email?.trim(); // 'email' field in frontend might contain username
+        const input = data.email?.trim(); 
         let email = input;
         let user;
 
-        // Check if input is email
         const isEmail = input?.includes('@');
 
         if (isEmail) {
@@ -241,20 +354,14 @@ export class AuthService {
             throw new BadRequestException('Invalid credentials');
         }
 
-        const payload = {
-            userId: user.id,
-            email: user.email,
-            role: user.role
-        };
+        const tokens = await this.generateTokens(user);
+        const expiresInDays = rememberMe ? 7 : 1; 
+        await this.updateRefreshToken(user.id, tokens.refresh_token, expiresInDays);
+
 
         return {
-            access_token: this.jwtService.sign(payload),
-            user: {
-                id: user.id,
-                email: user.email,
-                role: user.role,
-                username: user.username
-            }
+            ...tokens,
+            user: this.formatUserResponse(user)
         };
     }
 
@@ -287,13 +394,14 @@ export class AuthService {
     async guestLogin() {
         const guestId = `guest_${Math.random().toString(36).substring(7)}`;
         const payload = {
-            userId: guestId,
+            id: guestId,
             email: `${guestId}@example.com`,
             role: 'guest',
         };
 
+        const tokens = await this.generateTokens(payload);
         return {
-            access_token: this.jwtService.sign(payload),
+            ...tokens,
             user: {
                 id: guestId,
                 email: payload.email,
@@ -301,5 +409,32 @@ export class AuthService {
                 name: 'Guest User',
             }
         };
+    }
+
+    async getMe(userId: string) {
+        let user = await this.prisma.user.findUnique({
+            where: { id: userId },
+        });
+
+        if (!user) throw new BadRequestException('User not found');
+
+        if (user.currentStreak > 0 && user.lastActivityDate) {
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            const lastDateStr = user.lastActivityDate.toISOString().split('T')[0];
+
+            const yesterday = new Date(now);
+            yesterday.setDate(now.getDate() - 1);
+            const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+            if (lastDateStr !== todayStr && lastDateStr !== yesterdayStr) {
+                user = await this.prisma.user.update({
+                    where: { id: userId },
+                    data: { currentStreak: 0 },
+                });
+            }
+        }
+
+        return this.formatUserResponse(user);
     }
 }

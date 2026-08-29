@@ -11,6 +11,12 @@ import { TestsModule } from './tests/tests.module';
 import { ResultsModule } from './results/results.module';
 import { FirebaseModule } from './firebase/firebase.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { PerformanceModule } from './performance/performance.module';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
+import { GoalsModule } from './goals/goals.module';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+import { CodingModule } from './coding/coding.module';
 
 @Module({
   imports: [
@@ -23,6 +29,14 @@ import { PrismaModule } from './prisma/prisma.module';
     QuestionsModule,
     TestsModule,
     ResultsModule,
+    PerformanceModule,
+    LeaderboardModule,
+    GoalsModule,
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', '..', 'uploads'),
+      serveRoot: '/uploads',
+    }),
+    CodingModule,
     // FirebaseModule, // Temporarily disabled due to key parsing issues
   ],
   controllers: [AppController],
